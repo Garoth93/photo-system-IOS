@@ -6,9 +6,10 @@ e negli album dell'iPhone. Ti mostra una foto alla volta:
 - **scorri a sinistra** → la tieni e passi alla successiva;
 - **scorri a destra** → va nel cestino e passi alla successiva.
 
-Sviluppata senza Mac: compilata da GitHub Actions e installata sull'iPhone con
-un account Apple gratuito tramite Sideloadly o SideStore.
+Sviluppata senza Mac: compilata da GitHub Actions e distribuita con
+**TestFlight**. Il `.ipa` non firmato per Sideloadly resta come ripiego.
 
+[![testflight](https://github.com/Garoth93/photo-system-IOS/actions/workflows/testflight.yml/badge.svg)](https://github.com/Garoth93/photo-system-IOS/actions/workflows/testflight.yml)
 [![build-ipa](https://github.com/Garoth93/photo-system-IOS/actions/workflows/build-ipa.yml/badge.svg)](https://github.com/Garoth93/photo-system-IOS/actions/workflows/build-ipa.yml)
 [![test-linux](https://github.com/Garoth93/photo-system-IOS/actions/workflows/test-linux.yml/badge.svg)](https://github.com/Garoth93/photo-system-IOS/actions/workflows/test-linux.yml)
 
@@ -39,37 +40,32 @@ recuperabili per 30 giorni.
 ```
 apps/Sweep/          app SwiftUI (project.yml per XcodeGen, Sources/, Resources/)
 packages/SweepCore/  logica non grafica, testata con `swift test` anche su Linux
-.github/workflows/   build-simulator, build-ipa, test-linux
+.github/workflows/   testflight, build-ipa (ripiego), build-simulator, test-linux
+scripts/             API App Store Connect usate da testflight.yml
 CLAUDE.md            convenzioni e regole di lavoro per Claude Code
 ```
 
 ## Installare l'app sull'iPhone
 
-### 1. Scaricare il `.ipa`
+### TestFlight (consigliato)
 
-1. Pagina **Actions** della repo → workflow **build-ipa**.
-2. Apri l'ultimo run verde (o avvialo con **Run workflow**).
-3. In fondo alla pagina, sezione **Artifacts**, scarica `Sweep-unsigned-ipa`
-   (uno zip che contiene `Sweep-unsigned.ipa`) ed estrailo. Resta disponibile 30 giorni.
+1. Installa **TestFlight** dall'App Store e accedi con l'Apple ID del gruppo
+   di test interni.
+2. Ogni push su `main` o `claude/**` che tocca l'app carica una nuova build
+   (workflow **testflight**); dopo 5-30 minuti compare in TestFlight.
+   Si può anche avviare a mano: Actions › testflight › *Run workflow*.
+3. Le build scadono dopo 90 giorni: il workflow si ripete da solo ogni ~60
+   giorni.
 
-### 2. Firmare e installare con Sideloadly
+Al primo avvio tocca **Consenti accesso alle foto** e scegli **Consenti
+accesso completo**: con l'accesso limitato Sweep vede solo le foto che selezioni.
 
-1. Collega l'iPhone via USB, sbloccalo e scegli "Autorizza".
-2. Apri Sideloadly, trascina `Sweep-unsigned.ipa` nella finestra.
-3. Inserisci il tuo Apple ID (account gratuito) e premi **Start**.
-4. Sull'iPhone: Impostazioni → Generali → **VPN e gestione dispositivo** → il tuo
-   Apple ID → **Autorizza**. Serve anche la **Modalità sviluppatore** attiva
-   (Impostazioni → Privacy e sicurezza).
+### Ripiego: Sideloadly (account gratuito)
 
-### 3. Primo avvio
+1. Actions › **build-ipa** › ultimo run verde › Artifacts › `Sweep-unsigned-ipa`.
+2. Sideloadly: trascina `Sweep-unsigned.ipa`, inserisci l'Apple ID, **Start**.
+3. Sull'iPhone: Impostazioni › Generali › VPN e gestione dispositivo ›
+   Autorizza; Modalità sviluppatore attiva.
 
-Tocca **Consenti accesso alle foto** e scegli **Consenti accesso completo**: con
-l'accesso limitato Sweep vede solo le foto che selezioni.
-
-### 4. Limiti dell'account gratuito
-
-- La firma scade dopo **7 giorni**: rifirma lo stesso `.ipa` con Sideloadly
-  (il bundle ID `com.garoth93.sweep` non cambia, i progressi restano).
-- Massimo 3 app firmate contemporaneamente per Apple ID.
-- Lo stato di Sweep (foto già viste, cestino) sta nella sandbox dell'app: se
-  elimini l'app ricominci da zero. Le foto nella galleria non vengono toccate.
+Limiti: firma valida 7 giorni, massimo 3 app per Apple ID gratuito, backup
+iCloud non disponibile.

@@ -3,6 +3,7 @@ name: build-ipa
 # Builds every app in apps/ for a real iOS device WITHOUT code signing and
 # uploads an unsigned .ipa as a workflow artifact. The .ipa is then signed
 # on the user's side with Sideloadly / SideStore (free Apple account).
+# Fallback: the main channel is TestFlight (testflight.yml).
 
 on:
   push:
@@ -71,6 +72,28 @@ jobs:
           test -d "$APP_PATH" || { echo "::error::$APP_PATH not found"; ls -R build/DerivedData/Build/Products; exit 1; }
           rm -rf build/ipa && mkdir -p build/ipa/Payload
           cp -R "$APP_PATH" build/ipa/Payload/
+          # Ad-hoc signature carrying the entitlements (App Group shared with
+          # the widgets): Sideloadly / SideStore read them when re-signing.
+          PAYLOAD_APP="build/ipa/Payload/${{ matrix.app }}.app"
+          for appex in "$PAYLOAD_APP"/PlugIns/*.appex; do
+            [ -d "$appex" ] || continue
+            name=$(basename "$appex" .appex)
+            ent="${name#${{ matrix.app }}}.entitlements"
+            if [ -f "$ent" ]; then
+              codesign --force --sign - --timestamp=none --entitlements "$ent" "$appex"
+            else
+              codesign --force --sign - --timestamp=none "$appex"
+            fi
+          done
+          # <App>.sideload.entitlements (when present) drops what a free
+          # account cannot sign, e.g. iCloud.
+          APP_ENT="${{ matrix.app }}.entitlements"
+          [ -f "${{ matrix.app }}.sideload.entitlements" ] && APP_ENT="${{ matrix.app }}.sideload.entitlements"
+          if [ -f "$APP_ENT" ]; then
+            codesign --force --sign - --timestamp=none --entitlements "$APP_ENT" "$PAYLOAD_APP"
+          fi
+          codesign -d --entitlements - --xml "$PAYLOAD_APP" 2>/dev/null | plutil -p - || true
+          ls "$PAYLOAD_APP/PlugIns" 2>/dev/null || true
           (cd build/ipa && zip -qry "../${{ matrix.app }}-unsigned.ipa" Payload)
           ls -lh "build/${{ matrix.app }}-unsigned.ipa"
           # Show bundle id + version for the logs

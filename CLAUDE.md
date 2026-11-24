@@ -2,11 +2,12 @@
 
 Repo di app iOS **native (Swift + SwiftUI)** personali, sviluppate senza Mac:
 il codice viene scritto su Linux (Claude Code) e compilato **solo** su GitHub
-Actions con runner macOS. Le app non vanno su App Store: l'utente scarica il
-`.ipa` non firmato dagli artifact e lo firma con Sideloadly/SideStore.
+Actions con runner macOS. Le app non vanno su App Store: l'utente installa
+l'app da **TestFlight** (account Apple a pagamento, firma automatica in CI);
+il `.ipa` non firmato per Sideloadly resta come ripiego.
 
-Stessa impostazione delle repo `Garoth93/tracking-maintenance` e
-`Garoth93/LTIDI-Last-Time-I-Did-It-IOS`.
+Stessa impostazione delle repo `Garoth93/tessere-IOS` (TestFlight, backup
+iCloud), `Garoth93/montagna-360` e `Garoth93/tracking-maintenance`.
 
 ## Vincoli fissi
 
@@ -16,7 +17,9 @@ Stessa impostazione delle repo `Garoth93/tracking-maintenance` e
   `apps/<app>/project.yml` con XcodeGen. `.gitignore` lo esclude.
 - La repo è **pubblica**: mai committare segreti, chiavi API, certificati,
   profili di provisioning, dati personali, Team ID reali.
-- Account Apple gratuito: nessuna firma in CI (`CODE_SIGNING_ALLOWED=NO`).
+- Firma solo in `testflight.yml` (automatica, chiave API App Store Connect).
+  Mai certificati, profili o `.p8` nella repo; Team ID solo nei secrets.
+  `build-ipa.yml` compila senza firma (`CODE_SIGNING_ALLOWED=NO`).
 - Non modificare impostazioni della repo o secrets: spiegare all'utente cosa
   configurare.
 
@@ -96,8 +99,45 @@ con `name`, target e scheme nel `project.yml`.
 | Workflow | Trigger | Cosa fa |
 |----------|---------|---------|
 | `build-simulator.yml` | push su ogni branch, PR, manuale | `xcodebuild build` per iOS Simulator, senza firma. Serve a vedere gli errori di compilazione. |
-| `build-ipa.yml` | push su `main` e `claude/**`, manuale | build Release per dispositivo con `CODE_SIGNING_ALLOWED=NO`, impacchetta `Payload/<App>.app` in `<App>-unsigned.ipa` e lo carica come artifact (30 giorni). |
+| `build-ipa.yml` | push su `main` e `claude/**`, manuale | ripiego Sideloadly: build Release per dispositivo con `CODE_SIGNING_ALLOWED=NO`, firma ad-hoc con `<App>.sideload.entitlements` (o `<App>.entitlements`) se presente, impacchetta `Payload/<App>.app` in `<App>-unsigned.ipa` e lo carica come artifact (30 giorni). |
 | `test-linux.yml` | push su ogni branch, PR, manuale | `swift test` su ogni package in `packages/`. |
+| `testflight.yml` | manuale, push su `main` e `claude/**` (solo `apps/`, `packages/`, `scripts/`), ogni ~60 giorni | archive firmato + export App Store + upload su TestFlight (vedi sotto). Il 15 di ogni mese un job `keepalive` riattiva il workflow via API. |
+
+### TestFlight
+
+Già configurato a mano (una volta) dall'utente:
+
+- developer.apple.com: App ID esplicito `com.garoth93.sweep` con la sola
+  capability **iCloud** (CloudKit) e il container `iCloud.com.garoth93.backup`
+  assegnato (*Configure*). Niente App Group (Sweep non ha widget).
+- App Store Connect: scheda "Sweep – Pulizia Foto", SKU `sweep-ios`, bundle
+  `com.garoth93.sweep`; TestFlight › gruppo di test interni con
+  distribuzione automatica.
+- Secrets della repo: `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`,
+  `ASC_KEY_P8` (chiave API con ruolo Admin, la stessa delle altre repo).
+
+Come funziona (stessa procedura di tessere-IOS): `xcodebuild archive` con
+firma automatica (`-allowProvisioningUpdates` + chiave API; crea al volo un
+certificato di sviluppo sul runner, revocato dallo step finale con
+`scripts/asc_revoke_certs.py`), poi `-exportArchive` con
+`method=app-store-connect`, `destination=upload` (firma di distribuzione
+gestita da Apple e upload diretto). Build number = `github.run_number` del
+workflow; `MARKETING_VERSION` nel `project.yml` va alzato a mano per le nuove
+versioni. La build compare in TestFlight dopo 5-30 minuti. Lo step
+"App ID capabilities" (`scripts/asc_bundle_ids.py`) stampa capability e
+profili e cancella quelli senza il container iCloud, così Xcode li rigenera.
+Log di archive/export nell'artifact `testflight-logs`.
+
+Le build TestFlight scadono dopo 90 giorni: il cron `17 4 1 */2 *` le
+rinnova (gira sul branch di default della repo). GitHub disattiva i workflow
+programmati delle repo pubbliche dopo 60 giorni senza attività: il job
+`keepalive` (cron `43 5 15 * *`) chiama l'API "enable workflow" per azzerare
+il contatore. Se il workflow risultasse comunque disattivato: Actions ›
+testflight › *Enable workflow*, oppure un commit qualsiasi.
+
+Errori tipici: "doesn't match the entitlements file's value" = container
+iCloud non assegnato all'App ID su developer.apple.com; 90474 = manca
+`UIRequiresFullScreen` (l'app è solo verticale).
 
 Nota: nei repo pubblici i workflow con `schedule` vengono disattivati dopo 60
 giorni senza commit. Se in futuro si aggiunge un rebuild periodico (utile per
@@ -112,7 +152,7 @@ Con `gh` (se il token è valido):
 gh run list --limit 10
 gh run view <run-id> --log-failed
 gh run watch <run-id>
-gh run download <run-id> -n Sweep-unsigned-ipa
+gh run download <run-id> -n Sweep-unsigned-ipa   # ripiego Sideloadly
 ```
 
 Con gli strumenti GitHub MCP disponibili a Claude Code (quando `gh` non è
