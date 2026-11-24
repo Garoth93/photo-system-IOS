@@ -16,7 +16,8 @@ iCloud), `Garoth93/montagna-360` e `Garoth93/tracking-maintenance`.
 - Nessun `.xcodeproj` committato: il progetto è generato in CI da
   `apps/<app>/project.yml` con XcodeGen. `.gitignore` lo esclude.
 - La repo è **pubblica**: mai committare segreti, chiavi API, certificati,
-  profili di provisioning, dati personali, Team ID reali.
+  profili di provisioning, dati personali, Team ID reali. I test usano solo
+  dati **sintetici** (identificativi `TEST-…`), mai backup reali.
 - Firma solo in `testflight.yml` (automatica, chiave API App Store Connect).
   Mai certificati, profili o `.p8` nella repo; Team ID solo nei secrets.
   `build-ipa.yml` compila senza firma (`CODE_SIGNING_ALLOWED=NO`).
@@ -55,10 +56,50 @@ foto tenute (`SweepState.kept`) non vengono più riproposte in nessun album
 ("Rivedi da capo" le dimentica). Sorgenti: tutta la libreria, raccolte smart
 (Screenshot, Selfie, Video…) e album utente; filtro Tutto/Foto/Video e ordine
 Recenti/Vecchie/Casuale. Accesso a Photos in `PhotoLibrary.swift`; logica in
-`packages/SweepCore` (`SweepState`, `ReviewSession`, `SweepFormat`, palette
-Material 3 `MaterialScheme`). Stato salvato come JSON in Application Support
-(`AppModel` + `JSONFileStore`), con salvataggio differito per non rallentare
-lo swipe.
+`packages/SweepCore` (`SweepState`, `ReviewSession`, `SweepFormat`,
+`CloudBackup`, palette Material 3 `MaterialScheme`). Stato salvato come JSON
+in Application Support (`AppModel` + `JSONFileStore`), con salvataggio
+differito per non rallentare lo swipe; preferenze (filtro, ordine, backup
+on/off) in UserDefaults. Impostazioni in `SettingsView` (ingranaggio in home).
+
+### Backup iCloud Drive
+
+Stessa procedura di tessere-IOS / montagna-360: container **condiviso**
+`iCloud.com.garoth93.backup`, sottocartella `Sweep`, visibile in File come
+*iCloud Drive › Backup › Sweep*.
+
+- Configurazione: `Sweep.entitlements` (iCloud Documents sul container,
+  usato da `testflight.yml`), `Sweep.sideload.entitlements` vuoto (preferito
+  da `build-ipa.yml`: l'account gratuito non ha iCloud); `project.yml` con
+  `SystemCapabilities` iCloud + BackgroundModes, `NSUbiquitousContainers`
+  (nome `Backup`, pubblico), `UIBackgroundModes: [fetch]`,
+  `BGTaskSchedulerPermittedIdentifiers: [com.garoth93.sweep.backup]`.
+- File: `Sweep-backup-yyyy-MM-dd.json` (uno al giorno, ultimi 30) +
+  `Sweep-backup-latest.json`. Formato `BackupFile` (package, campo `version`,
+  oggi 1; decodifica tollerante ai campi mancanti, rifiuta app diversa e
+  versioni future): foto tenute e cestino come `PhotoRef`, totali
+  (eliminate, spazio liberato), riepilogo album (`AlbumSummary`: titolo,
+  tipo, totale, viste; solo informativo), impostazioni (`SweepSettings`).
+  **Mai** foto, miniature, token o dati sensibili.
+- `PhotoRef` = `PHAsset.localIdentifier` (valido solo su quell'iPhone) +
+  identificativo **Foto di iCloud** (`PHCloudIdentifier.stringValue`, quando la
+  foto è in Foto di iCloud). Al ripristino `restoredState(existing:cloudToLocal:)`
+  usa l'id locale se esiste ancora, altrimenti rimappa l'id iCloud
+  (`localIdentifierMappings`): così le scelte valgono anche su un iPhone nuovo.
+  Gli id iCloud sono calcolati a lotti di 500 fuori dal main thread e tenuti
+  in cache in `Application Support/Sweep/cloud-ids.json`.
+- Logica pura (formato, nomi file, pulizia, impronta per non riscrivere se
+  nulla è cambiato, rimappatura) in `CloudBackup.swift` del package, con test.
+  I/O in `CloudBackupService.swift`: `url(forUbiquityContainerIdentifier:)`
+  sempre fuori dal main thread, `NSFileCoordinator`, segnaposto `.icloud`
+  scaricati con `startDownloadingUbiquitousItem`.
+- Quando: 8 s dopo l'ultima modifica (`AppModel.onDataChanged`), all'uscita in
+  background (con `beginBackgroundTask`), `BGAppRefreshTask` ogni ~6 h.
+  Un'app vuota (niente tenute, cestino ed eliminate) non sovrascrive mai i backup.
+- Ripristino: Impostazioni › Ripristina da iCloud (`CloudRestoreView`, elenco,
+  anteprima, conferma se l'app ha già dati), e guidato al primo avvio se l'app
+  è vuota e in iCloud c'è un backup (chiesto una volta sola, dopo il permesso
+  Foto). Export/import manuale dello stesso JSON da Impostazioni › File.
 
 Per aggiungere un'app: creare `apps/<Nome>/project.yml` + `Sources/` +
 `Resources/`; i workflow scoprono automaticamente le cartelle in `apps/`

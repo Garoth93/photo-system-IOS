@@ -30,6 +30,11 @@ Sviluppata senza Mac: compilata da GitHub Actions e distribuita con
   in nessun album. "Rivedi da capo" le ripropone.
 - Filtro **Tutto / Foto / Video** e ordine **Recenti / Vecchie / Casuale**.
 - Totali: foto eliminate, spazio liberato, foto tenute.
+- **Backup automatico su iCloud Drive** (File › iCloud Drive › Backup › Sweep):
+  foto tenute, cestino, avanzamento degli album e impostazioni, un file al
+  giorno (ultimi 30). Mai le foto. Ripristino da Impostazioni o, al primo
+  avvio, se l'app è vuota; con Foto di iCloud attivo funziona anche su un
+  iPhone nuovo. Esporta/importa lo stesso JSON a mano da Impostazioni.
 - Tema chiaro/scuro automatico.
 
 Le foto eliminate finiscono in **Eliminati di recente** dell'app Foto e restano

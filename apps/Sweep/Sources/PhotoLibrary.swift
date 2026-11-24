@@ -57,6 +57,8 @@ struct AssetInfo: Equatable {
 @Observable
 @MainActor
 final class PhotoLibrary {
+    static let shared = PhotoLibrary()
+
     private(set) var status: PHAuthorizationStatus
     private(set) var libraryIDs: [String] = []
     private(set) var collections: [AlbumInfo] = []   // smart albums (Screenshots, Selfie…)
@@ -192,6 +194,49 @@ final class PhotoLibrary {
                 }
                 return Self.ids(in: PHAsset.fetchAssets(in: collection, options: Self.fetchOptions(filter)))
             }
+        }.value
+    }
+
+    /// Every item of the library (photos and videos), local identifiers.
+    func allLocalIDs() async -> Set<String> {
+        Set(await ids(for: .library, filter: .all))
+    }
+
+    // MARK: iCloud Photos identifiers (for backups that survive a new iPhone)
+
+    /// Local identifier → iCloud Photos identifier (only for items in iCloud Photos).
+    func cloudIdentifiers(for locals: [String]) async -> [String: String] {
+        guard canRead, !locals.isEmpty else { return [:] }
+        return await Task.detached(priority: .utility) {
+            var out: [String: String] = [:]
+            let library = PHPhotoLibrary.shared()
+            var start = 0
+            while start < locals.count {
+                let chunk = Array(locals[start..<min(start + 500, locals.count)])
+                for (local, result) in library.cloudIdentifierMappings(forLocalIdentifiers: chunk) {
+                    if case .success(let cloud) = result { out[local] = cloud.stringValue }
+                }
+                start += 500
+            }
+            return out
+        }.value
+    }
+
+    /// iCloud Photos identifier → local identifier on this iPhone.
+    func localIdentifiers(forCloud cloudIDs: [String]) async -> [String: String] {
+        guard canRead, !cloudIDs.isEmpty else { return [:] }
+        return await Task.detached(priority: .userInitiated) {
+            var out: [String: String] = [:]
+            let library = PHPhotoLibrary.shared()
+            var start = 0
+            while start < cloudIDs.count {
+                let chunk = cloudIDs[start..<min(start + 500, cloudIDs.count)].map { PHCloudIdentifier(stringValue: $0) }
+                for (cloud, result) in library.localIdentifierMappings(for: chunk) {
+                    if case .success(let local) = result { out[cloud.stringValue] = local }
+                }
+                start += 500
+            }
+            return out
         }.value
     }
 

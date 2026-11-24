@@ -102,7 +102,7 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           python3 -m pip install --quiet --break-system-packages "pyjwt[crypto]" 2>/dev/null || python3 -m pip install --quiet "pyjwt[crypto]"
-          python3 scripts/asc_bundle_ids.py com.garoth93.sweep
+          python3 scripts/asc_bundle_ids.py --delete-stale --container iCloud.com.garoth93.backup com.garoth93.sweep
 
       - name: Archive (automatic signing)
         working-directory: apps/${{ env.APP }}

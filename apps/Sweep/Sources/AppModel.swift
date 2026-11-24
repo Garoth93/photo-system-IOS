@@ -6,23 +6,43 @@ import SweepCore
 @Observable
 @MainActor
 final class AppModel {
+    static let shared = AppModel()
+
     private(set) var state: SweepState
     var filter: MediaFilter {
-        didSet { UserDefaults.standard.set(filter.rawValue, forKey: Keys.filter) }
+        didSet {
+            UserDefaults.standard.set(filter.rawValue, forKey: Keys.filter)
+            if filter != oldValue { onDataChanged?() }
+        }
     }
     var order: SweepOrder {
-        didSet { UserDefaults.standard.set(order.rawValue, forKey: Keys.order) }
+        didSet {
+            UserDefaults.standard.set(order.rawValue, forKey: Keys.order)
+            if order != oldValue { onDataChanged?() }
+        }
     }
+    /// Automatic backup in iCloud Drive (on by default).
+    var cloudBackup: Bool {
+        didSet {
+            UserDefaults.standard.set(cloudBackup, forKey: Keys.cloudBackup)
+            if cloudBackup && !oldValue { onDataChanged?() }
+        }
+    }
+    /// Bumped by a restore, so that the screens recompute their progress.
+    private(set) var restoreCount = 0
     private(set) var isDeleting = false
     /// Short message shown as a snackbar (deletion done, errors…).
     var toast: String?
 
     @ObservationIgnored private let store: JSONFileStore<SweepState>
     @ObservationIgnored private var pendingSave: Task<Void, Never>?
+    /// Called after every change of the data (the iCloud backup listens).
+    @ObservationIgnored var onDataChanged: (() -> Void)?
 
     private enum Keys {
         static let filter = "sweep.filter"
         static let order = "sweep.order"
+        static let cloudBackup = "sweep.cloudBackup"
     }
 
     init() {
@@ -32,6 +52,27 @@ final class AppModel {
         state = (try? store.load()) ?? SweepState()
         filter = MediaFilter(rawValue: UserDefaults.standard.string(forKey: Keys.filter) ?? "") ?? .all
         order = SweepOrder(rawValue: UserDefaults.standard.string(forKey: Keys.order) ?? "") ?? .newestFirst
+        cloudBackup = UserDefaults.standard.object(forKey: Keys.cloudBackup) as? Bool ?? true
+    }
+
+    var settings: SweepSettings {
+        SweepSettings(filter: filter, order: order, cloudBackup: cloudBackup)
+    }
+
+    /// True when there is something worth backing up.
+    var hasData: Bool {
+        !state.kept.isEmpty || state.trashCount > 0 || state.deletedCount > 0
+    }
+
+    /// Replaces everything with a restored backup.
+    func replace(state newState: SweepState, settings: SweepSettings) {
+        state = newState
+        filter = settings.filter
+        order = settings.order
+        cloudBackup = settings.cloudBackup
+        restoreCount += 1
+        saveNow()
+        onDataChanged?()
     }
 
     // MARK: Decisions
@@ -89,6 +130,7 @@ final class AppModel {
             state.restore(result.missing)
             state.commitDeletion(of: result.deleted, bytes: result.bytes)
             saveNow()
+            onDataChanged?()
             if result.deleted.isEmpty {
                 showToast("Queste foto non c'erano più nella libreria.")
             } else {
@@ -122,6 +164,7 @@ final class AppModel {
     /// Saves shortly after the last change, off the main thread, so that
     /// fast swiping never waits for the disk.
     private func scheduleSave() {
+        onDataChanged?()
         pendingSave?.cancel()
         let snapshot = state
         let store = self.store

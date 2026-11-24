@@ -6,9 +6,11 @@ import UIKit
 struct RootView: View {
     @Environment(PhotoLibrary.self) private var library
     @Environment(AppModel.self) private var model
+    @Environment(CloudBackupService.self) private var cloud
     @Environment(\.m3) private var m3
 
     var body: some View {
+        @Bindable var cloud = cloud
         ZStack(alignment: .bottom) {
             m3.surface.ignoresSafeArea()
 
@@ -28,6 +30,13 @@ struct RootView: View {
         }
         .animation(.spring(duration: 0.35), value: model.toast)
         .animation(.easeInOut(duration: 0.3), value: library.canRead)
+        // First launch with an empty app and a backup in iCloud: guided restore.
+        .task(id: library.canRead) {
+            if library.canRead { await cloud.offerRestoreIfNeeded() }
+        }
+        .sheet(isPresented: $cloud.offerRestore) {
+            CloudRestoreView(firstLaunch: true)
+        }
     }
 }
 

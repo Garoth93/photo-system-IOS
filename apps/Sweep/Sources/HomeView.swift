@@ -11,6 +11,7 @@ struct HomeView: View {
 
     @State private var active: SweepSource?
     @State private var showTrash = false
+    @State private var showSettings = false
     @State private var confirmForget = false
     /// Reviewed items per source id (computed on demand, not on every swipe).
     @State private var reviewed: [String: Int] = [:]
@@ -55,6 +56,12 @@ struct HomeView: View {
         .sheet(isPresented: $showTrash, onDismiss: refreshProgress) {
             TrashView()
         }
+        .sheet(isPresented: $showSettings, onDismiss: refreshProgress) {
+            SettingsView()
+        }
+        .onChange(of: model.restoreCount) { _, _ in
+            refreshProgress()
+        }
         .confirmationDialog("Rivedere le foto già tenute?", isPresented: $confirmForget, titleVisibility: .visible) {
             Button("Rivedi tutto da capo", role: .destructive) {
                 model.forgetAllKept()
@@ -88,7 +95,13 @@ struct HomeView: View {
                     .foregroundStyle(m3.onSurfaceVariant)
             }
             Spacer()
+            IconButton(icon: "gearshape", label: "Impostazioni") { showSettings = true }
             Menu {
+                Button {
+                    showSettings = true
+                } label: {
+                    Label("Impostazioni e backup", systemImage: "gearshape")
+                }
                 Button {
                     confirmForget = true
                 } label: {
