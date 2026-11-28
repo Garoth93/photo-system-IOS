@@ -44,7 +44,7 @@ App presenti:
 
 | App   | Package logica | Bundle ID             | Deployment target |
 |-------|----------------|-----------------------|-------------------|
-| Sweep | SweepCore      | `com.garoth93.sweep`  | iOS 26.0 |
+| Sweep | SweepCore      | `com.garoth93.sweep`  | iOS 26.0 (SDK iOS 27.2) |
 
 Sweep: pulizia della galleria foto, una foto alla volta. **Scorri a sinistra =
 tieni e vai avanti; scorri a destra = metti nel cestino e vai avanti** (scelta
@@ -128,10 +128,14 @@ con `name`, target e scheme nel `project.yml`.
 
 ## Xcode e runner
 
-- Runner: `macos-26`. Xcode fissato con `XCODE_VERSION: "26.6"` (SDK iOS 26.5) (env in ogni
+- Runner: `xcode-27` (immagine macOS 27 con Xcode 27.x; `macos-26` arriva solo
+  a Xcode 26.6 / SDK iOS 26.5, non più accettato da App Store Connect da aprile
+  2027). Xcode fissato con `XCODE_VERSION: "27.2"` (SDK iOS 27.2) (env in ogni
   workflow) e selezionato con `xcode-select`. Se GitHub ritira la versione,
   la composite action fallisce elencando le Xcode disponibili: aggiornare il
-  valore in tutti i workflow e qui.
+  valore in tutti i workflow, in `project.yml` (`xcodeVersion`) e qui.
+  Versioni installate: `images/macos/xcode-27-arm64-Readme.md` della repo
+  `actions/runner-images`. Deployment target dell'app: iOS 26.0.
 - Toolchain Linux per i test: immagine Docker `swift:6.0-noble`.
 - XcodeGen e xcbeautify installati con Homebrew a ogni run.
 

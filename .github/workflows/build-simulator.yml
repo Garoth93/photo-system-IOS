@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 env:
-  XCODE_VERSION: "26.6"   # pinned; see CLAUDE.md "Xcode e runner"
+  XCODE_VERSION: "27.2"   # pinned (iOS 27.2 SDK); see CLAUDE.md "Xcode e runner"
 
 concurrency:
   group: build-simulator-${{ github.ref }}
@@ -33,7 +33,7 @@ jobs:
 
   build:
     needs: discover
-    runs-on: macos-26
+    runs-on: xcode-27   # macOS 27 image with Xcode 27.x
     timeout-minutes: 40
     strategy:
       fail-fast: false

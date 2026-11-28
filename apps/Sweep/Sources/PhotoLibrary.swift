@@ -74,7 +74,6 @@ final class PhotoLibrary {
 
     init() {
         status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        imageManager.allowsCachingHighQualityImages = true
         startObservingIfAllowed()
     }
 

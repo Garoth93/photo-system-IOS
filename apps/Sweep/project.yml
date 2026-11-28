@@ -6,8 +6,8 @@ name: Sweep
 options:
   bundleIdPrefix: com.garoth93
   deploymentTarget:
-    iOS: "26.0"   # iPhone dell'utente: iOS 26+; SDK del runner: iOS 26.5 (Xcode 26.6)
-  xcodeVersion: "26.6"
+    iOS: "26.0"   # minimo supportato (iPhone dell'utente su iOS 27); SDK: iOS 27.2 (Xcode 27.2)
+  xcodeVersion: "27.2"
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
