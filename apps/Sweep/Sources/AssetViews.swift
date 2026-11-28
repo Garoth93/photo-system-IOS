@@ -11,10 +11,22 @@ struct AssetImage: View {
     let targetSize: CGSize
     var fill = false
     var blurredBackdrop = false
+    /// Zoom of the picture (the blurred backdrop stays still).
+    var zoom: CGFloat = 1
+    var pan: CGSize = .zero
 
     @Environment(PhotoLibrary.self) private var library
     @Environment(\.m3) private var m3
     @State private var image: UIImage?
+    @State private var loadedID: String?
+
+    /// Zoomed in: ask Photos for a sharper version (up to 3× the size).
+    private var hiRes: Bool { zoom > 1.2 }
+
+    private struct LoadKey: Hashable {
+        let id: String
+        let hiRes: Bool
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -33,6 +45,8 @@ struct AssetImage: View {
                         .resizable()
                         .aspectRatio(contentMode: fill ? .fill : .fit)
                         .frame(width: geo.size.width, height: geo.size.height)
+                        .scaleEffect(zoom)
+                        .offset(pan)
                         .clipped()
                 } else {
                     ProgressView()
@@ -41,11 +55,17 @@ struct AssetImage: View {
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }
-        .task(id: id) {
-            image = nil
-            let stream = library.images(for: id, targetSize: targetSize, contentMode: fill ? .aspectFill : .aspectFit)
+        .task(id: LoadKey(id: id, hiRes: hiRes)) {
+            // A new photo starts empty; a sharper version of the same photo
+            // replaces the current one only when it arrives.
+            if loadedID != id { image = nil }
+            loadedID = id
+            let size = hiRes
+                ? CGSize(width: min(targetSize.width * 3, 4096), height: min(targetSize.height * 3, 4096))
+                : targetSize
+            let stream = library.images(for: id, targetSize: size, contentMode: fill ? .aspectFill : .aspectFit)
             for await next in stream {
-                image = next
+                if !hiRes || image == nil || next.size.width >= (image?.size.width ?? 0) { image = next }
             }
         }
     }
@@ -78,6 +98,8 @@ struct SwipeCard: View {
     let id: String
     let isTop: Bool
     let targetSize: CGSize
+    var zoom: CGFloat = 1
+    var pan: CGSize = .zero
 
     @Environment(PhotoLibrary.self) private var library
     @Environment(\.m3) private var m3
@@ -90,13 +112,17 @@ struct SwipeCard: View {
     var body: some View {
         ZStack {
             m3.surfaceContainerHighest
-            AssetImage(id: id, targetSize: targetSize, blurredBackdrop: true)
+            AssetImage(id: id, targetSize: targetSize, blurredBackdrop: true, zoom: zoom, pan: pan)
             if let player {
                 PlayerLayerView(player: player)
                     .transition(.opacity)
             }
         }
-        .overlay(alignment: .bottom) { details }
+        .overlay(alignment: .bottom) {
+            details
+                .opacity(zoom > 1.01 ? 0 : 1)
+                .animation(.easeInOut(duration: 0.2), value: zoom > 1.01)
+        }
         .overlay {
             if info?.isVideo == true && isTop {
                 playButton
@@ -212,5 +238,92 @@ struct SwipeCard: View {
         player?.pause()
         player = nil
         playing = false
+    }
+}
+
+// MARK: - Zoom
+
+/// Shared math for pinch / double-tap zoom.
+enum ZoomMath {
+    static let maxZoom: CGFloat = 5
+    static let doubleTapZoom: CGFloat = 2.5
+
+    /// Keeps the zoomed picture inside its frame.
+    static func clamp(_ pan: CGSize, zoom: CGFloat, size: CGSize) -> CGSize {
+        let maxX = max(0, (zoom - 1) * size.width / 2)
+        let maxY = max(0, (zoom - 1) * size.height / 2)
+        return CGSize(width: min(maxX, max(-maxX, pan.width)), height: min(maxY, max(-maxY, pan.height)))
+    }
+}
+
+/// Full-screen photo with pinch, pan and double-tap zoom (from the duplicates).
+struct PhotoViewer: View {
+    let id: String
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.displayScale) private var displayScale
+    @State private var zoom: CGFloat = 1
+    @State private var lastZoom: CGFloat = 1
+    @State private var pan: CGSize = .zero
+    @State private var lastPan: CGSize = .zero
+
+    var body: some View {
+        GeometryReader { geo in
+            AssetImage(id: id,
+                       targetSize: CGSize(width: geo.size.width * displayScale, height: geo.size.height * displayScale),
+                       zoom: zoom, pan: pan)
+                .contentShape(Rectangle())
+                .gesture(
+                    MagnifyGesture()
+                        .onChanged { value in
+                            zoom = min(ZoomMath.maxZoom, max(1, lastZoom * value.magnification))
+                            pan = ZoomMath.clamp(pan, zoom: zoom, size: geo.size)
+                        }
+                        .onEnded { _ in
+                            lastZoom = zoom
+                            if zoom < 1.05 { reset() }
+                        }
+                        .simultaneously(with: DragGesture(minimumDistance: 4)
+                            .onChanged { value in
+                                guard zoom > 1.01 else { return }
+                                pan = ZoomMath.clamp(CGSize(width: lastPan.width + value.translation.width,
+                                                            height: lastPan.height + value.translation.height),
+                                                     zoom: zoom, size: geo.size)
+                            }
+                            .onEnded { value in
+                                if zoom > 1.01 {
+                                    lastPan = pan
+                                } else if value.translation.height > 120 {
+                                    dismiss()   // swipe down to close
+                                }
+                            })
+                )
+                .onTapGesture(count: 2) {
+                    withAnimation(.spring(duration: 0.35)) {
+                        if zoom > 1.01 { reset() } else { zoom = ZoomMath.doubleTapZoom; lastZoom = zoom }
+                    }
+                }
+        }
+        .background(Color.black.ignoresSafeArea())
+        .overlay(alignment: .topLeading) {
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(.white.opacity(0.18), in: Circle())
+            }
+            .buttonStyle(PressableStyle())
+            .padding(16)
+            .accessibilityLabel("Chiudi")
+        }
+        .statusBarHidden()
+    }
+
+    private func reset() {
+        zoom = 1
+        lastZoom = 1
+        pan = .zero
+        lastPan = .zero
     }
 }

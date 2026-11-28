@@ -18,6 +18,11 @@ struct SimilarView: View {
     @State private var loaded = false
     @State private var keptNow = 0
     @State private var sizes: [String: Int64] = [:]
+    @State private var viewing: ViewedPhoto?
+
+    private struct ViewedPhoto: Identifiable {
+        let id: String
+    }
     @State private var binnedNow = 0
 
     private struct Resolution {
@@ -52,6 +57,9 @@ struct SimilarView: View {
             sizes = await SizeIndex.shared.sizes(for: queue.flatMap(\.ids))
         }
         .sheet(isPresented: $showTrash) { TrashView() }
+        .fullScreenCover(item: $viewing) { photo in
+            PhotoViewer(id: photo.id)
+        }
         .sensoryFeedback(.selection, trigger: keep)
         .sensoryFeedback(.impact(weight: .medium), trigger: index)
     }
@@ -153,13 +161,15 @@ struct SimilarView: View {
                             .foregroundStyle(m3.onSurfaceVariant)
                         Spacer()
                     }
-                    Text("Tocca le foto da tenere: le altre vanno nel cestino. Ti ho già scelto la migliore.")
+                    Text("Tocca le foto da tenere: le altre vanno nel cestino. Ti ho già scelto la migliore. Con la lente la vedi a schermo intero.")
                         .font(.m3BodySmall)
                         .foregroundStyle(m3.onSurfaceVariant)
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                         ForEach(group.ids, id: \.self) { id in
-                            SimilarCell(id: id, keep: keep.contains(id), best: id == group.best, bytes: sizes[id])
-                                .onTapGesture { toggle(id) }
+                            SimilarCell(id: id, keep: keep.contains(id), best: id == group.best, bytes: sizes[id]) {
+                                viewing = ViewedPhoto(id: id)
+                            }
+                            .onTapGesture { toggle(id) }
                         }
                     }
                 }
@@ -294,6 +304,7 @@ private struct SimilarCell: View {
     let keep: Bool
     let best: Bool
     var bytes: Int64?
+    var onZoom: (() -> Void)?
 
     var body: some View {
         Color.clear
@@ -328,6 +339,20 @@ private struct SimilarCell: View {
                         .frame(height: 26)
                         .background(.black.opacity(0.45), in: Capsule())
                         .padding(8)
+                }
+            }
+            .overlay(alignment: .topLeading) {
+                if let onZoom {
+                    Button(action: onZoom) {
+                        Image(systemName: "plus.magnifyingglass")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 32, height: 32)
+                            .background(.black.opacity(0.45), in: Circle())
+                    }
+                    .buttonStyle(PressableStyle())
+                    .padding(8)
+                    .accessibilityLabel("Ingrandisci")
                 }
             }
             .overlay(alignment: .bottomTrailing) {

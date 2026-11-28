@@ -1,3 +1,4 @@
+import Photos
 import SwiftUI
 import SweepCore
 
@@ -25,6 +26,12 @@ struct SweepView: View {
     /// Photos this session made favourite (undo removes the heart again).
     @State private var favoritedNow: Set<String> = []
     @State private var cardSize: CGSize = .zero
+    // Zoom of the top card (pinch or double tap). While zoomed, dragging pans.
+    @State private var zoom: CGFloat = 1
+    @State private var lastZoom: CGFloat = 1
+    @State private var pan: CGSize = .zero
+    @State private var lastPan: CGSize = .zero
+    @State private var pinching = false
 
     private let threshold: CGFloat = 110
 
@@ -179,10 +186,15 @@ struct SweepView: View {
             ZStack {
                 edgeHints
                 ForEach(items) { item in
-                    SwipeCard(id: item.id, isTop: item.depth == 0, targetSize: pixelSize == .zero ? CGSize(width: size.width * displayScale, height: size.height * displayScale) : pixelSize)
+                    SwipeCard(id: item.id, isTop: item.depth == 0,
+                              targetSize: pixelSize == .zero ? CGSize(width: size.width * displayScale, height: size.height * displayScale) : pixelSize,
+                              zoom: item.depth == 0 ? zoom : 1, pan: item.depth == 0 ? pan : .zero)
                         .frame(width: size.width, height: size.height)
                         .overlay {
-                            if item.depth == 0 { stamps }
+                            if item.depth == 0 && !isZoomed { stamps }
+                        }
+                        .overlay(alignment: .top) {
+                            if item.depth == 0 && isZoomed { zoomBadge }
                         }
                         .scaleEffect(scale(for: item.depth))
                         .offset(y: lift(for: item.depth))
@@ -196,6 +208,8 @@ struct SweepView: View {
             .frame(width: geo.size.width, height: geo.size.height)
             .contentShape(Rectangle())
             .simultaneousGesture(dragGesture)
+            .simultaneousGesture(magnifyGesture)
+            .onTapGesture(count: 2) { toggleZoom() }
             .onAppear {
                 cardSize = size
                 preheat()
@@ -226,7 +240,7 @@ struct SweepView: View {
 
     /// The move the card would do if released now (for haptics).
     private var dragZone: Move? {
-        if flying || session?.isFinished != false { return nil }
+        if flying || isZoomed || session?.isFinished != false { return nil }
         return move(for: offset)
     }
 
@@ -316,16 +330,89 @@ struct SweepView: View {
         .allowsHitTesting(false)
     }
 
+    // MARK: Zoom
+
+    private var isZoomed: Bool { zoom > 1.01 }
+
+    /// Videos are not zoomed (the player is not scaled).
+    private var canZoom: Bool {
+        guard let id = session?.current, !flying else { return false }
+        return library.asset(id)?.mediaType != .video
+    }
+
+    private var zoomBadge: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "plus.magnifyingglass")
+            Text("\(String(format: "%.1f", zoom).replacingOccurrences(of: ".", with: ","))× · doppio tocco per tornare")
+        }
+        .font(.m3LabelMedium)
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12)
+        .frame(height: 30)
+        .background(.black.opacity(0.45), in: Capsule())
+        .padding(.top, 14)
+        .allowsHitTesting(false)
+    }
+
+    private var magnifyGesture: some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                guard canZoom else { return }
+                if !pinching {
+                    pinching = true
+                    // A pinch is not a swipe: bring the card back to the centre.
+                    withAnimation(.spring(duration: 0.25)) { offset = .zero }
+                }
+                zoom = min(ZoomMath.maxZoom, max(1, lastZoom * value.magnification))
+                pan = ZoomMath.clamp(pan, zoom: zoom, size: cardSize)
+            }
+            .onEnded { _ in
+                pinching = false
+                lastZoom = zoom
+                if zoom < 1.05 { withAnimation(.spring(duration: 0.3)) { resetZoom() } }
+            }
+    }
+
+    private func toggleZoom() {
+        guard canZoom else { return }
+        withAnimation(.spring(duration: 0.35)) {
+            if isZoomed {
+                resetZoom()
+            } else {
+                zoom = ZoomMath.doubleTapZoom
+                lastZoom = zoom
+            }
+        }
+    }
+
+    private func resetZoom() {
+        zoom = 1
+        lastZoom = 1
+        pan = .zero
+        lastPan = .zero
+    }
+
     // MARK: Gesture and actions
 
     private var dragGesture: some Gesture {
         DragGesture(minimumDistance: 8)
             .onChanged { value in
-                guard !flying, session?.isFinished == false else { return }
+                guard !flying, !pinching, session?.isFinished == false else { return }
+                if isZoomed {
+                    pan = ZoomMath.clamp(CGSize(width: lastPan.width + value.translation.width,
+                                                height: lastPan.height + value.translation.height),
+                                         zoom: zoom, size: cardSize)
+                    return
+                }
                 offset = value.translation
             }
             .onEnded { value in
                 guard !flying, session?.isFinished == false else { return }
+                if isZoomed || pinching {
+                    lastPan = pan
+                    if !isZoomed { withAnimation(.spring(duration: 0.3)) { offset = .zero } }
+                    return
+                }
                 let t = value.translation
                 let p = value.predictedEndTranslation
                 // A fast flick counts too, in the same direction as the drag.
@@ -354,6 +441,7 @@ struct SweepView: View {
     private func commit(_ move: Move) {
         guard !flying, session?.current != nil else { return }
         flying = true
+        if isZoomed { withAnimation(.spring(duration: 0.2)) { resetZoom() } }
         withAnimation(.easeIn(duration: 0.22)) {
             offset = exit(for: move)
         } completion: {
@@ -398,6 +486,7 @@ struct SweepView: View {
     private func undo() {
         guard !flying, var s = session, let step = s.undo() else { return }
         flying = true
+        resetZoom()
         if step.decision != nil { model.revert(step.id) }
         if step.move == .favorite, favoritedNow.remove(step.id) != nil {
             Task { await library.setFavorite(step.id, false) }

@@ -51,7 +51,11 @@ tieni e vai avanti; scorri a destra = metti nel cestino e vai avanti** (scelta
 esplicita dell'utente, non invertire). In più: **su = decidi dopo** (la foto
 torna in fondo alla coda, `Move.later`), **giù = Preferita** (cuore in Foto con
 `PHAssetChangeRequest.isFavorite` e tenuta; Annulla toglie il cuore se l'ha
-messo Sweep). Asse dominante del trascinamento; pulsanti equivalenti in basso. Le foto scartate non vengono eliminate a
+messo Sweep). Asse dominante del trascinamento; pulsanti equivalenti in basso. **Zoom**: pizzico o doppio tocco
+sulla card (fino a 5×, non sui video); da ingrandita il trascinamento sposta
+l'immagine invece di fare swipe e `AssetImage` chiede a Foto una versione 3×
+più nitida; ogni scelta o Annulla azzera lo zoom. `PhotoViewer` (lente nei
+doppioni) è la stessa cosa a schermo intero. Le foto scartate non vengono eliminate a
 ogni swipe perché iOS chiede una conferma per ogni richiesta di eliminazione:
 finiscono nel cestino interno (`SweepState.trash`) e si eliminano insieme con
 una sola conferma (fine album, card cestino in home, schermata Cestino). Le

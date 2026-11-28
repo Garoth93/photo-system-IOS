@@ -8,6 +8,9 @@ e negli album dell'iPhone. Ti mostra una foto alla volta:
 - **scorri in su** → decidi dopo: la foto torna alla fine;
 - **scorri in giù** → la aggiungi ai Preferiti (e la tieni).
 
+Per controllare se una foto è mossa: **doppio tocco** o **pizzico** per
+ingrandirla, trascina per spostarti, doppio tocco per tornare.
+
 Sviluppata senza Mac: compilata da GitHub Actions e distribuita con
 **TestFlight**. Il `.ipa` non firmato per Sideloadly resta come ripiego.
 
