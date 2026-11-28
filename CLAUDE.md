@@ -48,7 +48,10 @@ App presenti:
 
 Sweep: pulizia della galleria foto, una foto alla volta. **Scorri a sinistra =
 tieni e vai avanti; scorri a destra = metti nel cestino e vai avanti** (scelta
-esplicita dell'utente, non invertire). Le foto scartate non vengono eliminate a
+esplicita dell'utente, non invertire). In più: **su = decidi dopo** (la foto
+torna in fondo alla coda, `Move.later`), **giù = Preferita** (cuore in Foto con
+`PHAssetChangeRequest.isFavorite` e tenuta; Annulla toglie il cuore se l'ha
+messo Sweep). Asse dominante del trascinamento; pulsanti equivalenti in basso. Le foto scartate non vengono eliminate a
 ogni swipe perché iOS chiede una conferma per ogni richiesta di eliminazione:
 finiscono nel cestino interno (`SweepState.trash`) e si eliminano insieme con
 una sola conferma (fine album, card cestino in home, schermata Cestino). Le

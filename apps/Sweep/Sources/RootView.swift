@@ -51,15 +51,15 @@ struct WelcomeView: View {
     }
 
     var body: some View {
-        VStack(spacing: 28) {
-            Spacer(minLength: 20)
+        VStack(spacing: 20) {
+            Spacer(minLength: 12)
 
             ZStack {
                 CookieShape(lobes: 12, depth: 0.05)
                     .fill(m3.primaryContainer)
-                    .frame(width: 168, height: 168)
+                    .frame(width: 132, height: 132)
                 Image(systemName: "photo.stack")
-                    .font(.system(size: 64, weight: .semibold))
+                    .font(.system(size: 52, weight: .semibold))
                     .foregroundStyle(m3.onPrimaryContainer)
             }
 
@@ -73,9 +73,11 @@ struct WelcomeView: View {
                     .multilineTextAlignment(.center)
             }
 
-            VStack(spacing: 10) {
+            VStack(spacing: 8) {
                 GestureHintRow(icon: "arrow.left", title: "Scorri a sinistra", detail: "tieni la foto e vai avanti", tones: m3.keep)
                 GestureHintRow(icon: "arrow.right", title: "Scorri a destra", detail: "eliminala e vai avanti", tones: m3.delete)
+                GestureHintRow(icon: "arrow.up", title: "Scorri in su", detail: "decidi dopo: torna alla fine", tones: m3.later)
+                GestureHintRow(icon: "arrow.down", title: "Scorri in giù", detail: "aggiungila ai Preferiti", tones: m3.favorite)
             }
             .padding(.horizontal, 24)
 
@@ -114,14 +116,14 @@ struct GestureHintRow: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            IconBadge(icon: icon, tones: tones, size: 44)
+            IconBadge(icon: icon, tones: tones, size: 40)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.m3TitleSmall).foregroundStyle(m3.onSurface)
                 Text(detail).font(.m3BodySmall).foregroundStyle(m3.onSurfaceVariant)
             }
             Spacer()
         }
-        .padding(12)
-        .background(m3.surfaceContainerLow, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .padding(10)
+        .background(m3.surfaceContainerLow, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }

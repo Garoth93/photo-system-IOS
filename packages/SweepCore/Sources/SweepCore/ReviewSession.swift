@@ -1,23 +1,46 @@
 import Foundation
 
+/// What the user did with one photo of a session.
+public enum Move: String, Codable, Sendable {
+    /// Swipe left: keep.
+    case keep
+    /// Swipe right: put in the bin.
+    case delete
+    /// Swipe down: add to Favorites (and keep).
+    case favorite
+    /// Swipe up: decide later (the photo goes to the end of the queue).
+    case later
+
+    /// The decision recorded in `SweepState` (nil for `.later`).
+    public var decision: Decision? {
+        switch self {
+        case .keep, .favorite: return .keep
+        case .delete: return .delete
+        case .later: return nil
+        }
+    }
+}
+
 /// One pass over a list of photos, one at a time, with unlimited undo.
 ///
-/// The session only knows the order and the decisions; the app mirrors every
+/// The session only knows the order and the moves; the app mirrors every
 /// decision into `SweepState` so that progress survives a restart.
 public struct ReviewSession: Equatable, Sendable {
     public struct Step: Equatable, Sendable {
         public let id: String
-        public let decision: Decision
+        public let move: Move
 
-        public init(id: String, decision: Decision) {
+        public init(id: String, move: Move) {
             self.id = id
-            self.decision = decision
+            self.move = move
         }
+
+        public var decision: Decision? { move.decision }
     }
 
-    /// Photos of this pass, in display order.
-    public let ids: [String]
-    /// Index of the photo on screen (== number of decisions taken).
+    /// Photos of this pass, in display order ("later" moves one to the end).
+    public private(set) var ids: [String]
+    /// Index of the photo on screen (== number of photos decided).
     public private(set) var position: Int = 0
     public private(set) var history: [Step] = []
 
@@ -32,6 +55,7 @@ public struct ReviewSession: Equatable, Sendable {
     public var canUndo: Bool { !history.isEmpty }
     public var keptCount: Int { history.filter { $0.decision == .keep }.count }
     public var deletedCount: Int { history.filter { $0.decision == .delete }.count }
+    public var favoriteCount: Int { history.filter { $0.move == .favorite }.count }
 
     /// 0…1, share of photos already decided.
     public var progress: Double {
@@ -44,21 +68,38 @@ public struct ReviewSession: Equatable, Sendable {
         return Array(ids[position..<min(ids.count, position + count)])
     }
 
-    /// Decides the current photo and moves to the next one.
+    /// Applies a move to the current photo and shows the next one.
     @discardableResult
-    public mutating func decide(_ decision: Decision) -> Step? {
+    public mutating func apply(_ move: Move) -> Step? {
         guard let id = current else { return nil }
-        let step = Step(id: id, decision: decision)
+        let step = Step(id: id, move: move)
         history.append(step)
-        position += 1
+        if move == .later {
+            ids.remove(at: position)
+            ids.append(id)
+        } else {
+            position += 1
+        }
         return step
     }
 
-    /// Goes back one photo; returns the decision that was undone.
+    /// Keep / delete the current photo.
+    @discardableResult
+    public mutating func decide(_ decision: Decision) -> Step? {
+        apply(decision == .keep ? .keep : .delete)
+    }
+
+    /// Goes back one move; returns the move that was undone.
     @discardableResult
     public mutating func undo() -> Step? {
         guard let last = history.popLast() else { return nil }
-        position -= 1
+        if last.move == .later {
+            // Undone in LIFO order: the postponed photo is the last one.
+            if let index = ids.lastIndex(of: last.id) { ids.remove(at: index) }
+            ids.insert(last.id, at: position)
+        } else {
+            position -= 1
+        }
         return last
     }
 }

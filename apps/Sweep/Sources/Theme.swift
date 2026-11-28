@@ -81,6 +81,15 @@ struct M3Theme: Sendable {
     var keep: Tones { Tones(accent: success, container: successContainer, onContainer: onSuccessContainer) }
     /// Colors used for "delete" (swipe right).
     var delete: Tones { Tones(accent: error, container: errorContainer, onContainer: onErrorContainer) }
+    /// Colors used for "decide later" (swipe up).
+    var later: Tones { Tones(accent: tertiary, container: tertiaryContainer, onContainer: onTertiaryContainer) }
+    /// Colors used for "favourite" (swipe down): pink, like the heart in Photos.
+    var favorite: Tones {
+        let pink = TonalPalette(hue: 0, chroma: 70)
+        return Tones(accent: Color(rgb: pink.tone(dark ? 80 : 50)),
+                     container: Color(rgb: pink.tone(dark ? 30 : 90)),
+                     onContainer: Color(rgb: pink.tone(dark ? 90 : 20)))
+    }
 }
 
 extension EnvironmentValues {

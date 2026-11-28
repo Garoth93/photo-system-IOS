@@ -9,15 +9,15 @@ final class ReviewSessionTests: XCTestCase {
         XCTAssertEqual(s.upcoming(2), ["a", "b"])
         XCTAssertFalse(s.canUndo)
 
-        XCTAssertEqual(s.decide(.keep), .init(id: "a", decision: .keep))
-        XCTAssertEqual(s.decide(.delete), .init(id: "b", decision: .delete))
+        XCTAssertEqual(s.decide(.keep), .init(id: "a", move: .keep))
+        XCTAssertEqual(s.decide(.delete), .init(id: "b", move: .delete))
         XCTAssertEqual(s.current, "c")
         XCTAssertEqual(s.keptCount, 1)
         XCTAssertEqual(s.deletedCount, 1)
         XCTAssertEqual(s.remaining, 1)
         XCTAssertEqual(s.progress, 2.0 / 3.0, accuracy: 1e-9)
 
-        XCTAssertEqual(s.undo(), .init(id: "b", decision: .delete))
+        XCTAssertEqual(s.undo(), .init(id: "b", move: .delete))
         XCTAssertEqual(s.current, "b")
         XCTAssertEqual(s.deletedCount, 0)
 

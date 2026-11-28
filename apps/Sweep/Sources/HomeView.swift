@@ -96,8 +96,8 @@ struct HomeView: View {
                 Text("Sweep")
                     .font(.m3HeadlineLarge)
                     .foregroundStyle(m3.onSurface)
-                Text("Sinistra tieni · destra elimini")
-                    .font(.m3BodyMedium)
+                Text("← tieni · → elimini · ↑ dopo · ↓ preferita")
+                    .font(.m3BodySmall)
                     .foregroundStyle(m3.onSurfaceVariant)
             }
             Spacer()

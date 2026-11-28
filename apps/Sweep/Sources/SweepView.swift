@@ -2,7 +2,7 @@ import SwiftUI
 import SweepCore
 
 /// The cleaning screen: one photo at a time.
-/// Swipe left = keep and go on; swipe right = put in the bin and go on.
+/// Swipe left = keep, right = bin, up = decide later, down = favourite.
 struct SweepView: View {
     let source: SweepSource
 
@@ -20,6 +20,10 @@ struct SweepView: View {
     @State private var showTrash = false
     @State private var keepTick = 0
     @State private var deleteTick = 0
+    @State private var laterTick = 0
+    @State private var favoriteTick = 0
+    /// Photos this session made favourite (undo removes the heart again).
+    @State private var favoritedNow: Set<String> = []
     @State private var cardSize: CGSize = .zero
 
     private let threshold: CGFloat = 110
@@ -47,6 +51,8 @@ struct SweepView: View {
         }
         .sensoryFeedback(.impact(weight: .light), trigger: keepTick)
         .sensoryFeedback(.impact(weight: .medium), trigger: deleteTick)
+        .sensoryFeedback(.impact(weight: .light), trigger: laterTick)
+        .sensoryFeedback(.success, trigger: favoriteTick)
         .sensoryFeedback(.selection, trigger: dragZone)
         .onDisappear {
             library.stopPreheating()
@@ -203,8 +209,10 @@ struct SweepView: View {
 
     /// 0…1: how far the top card is from the center, relative to the threshold.
     private var swipeProgress: CGFloat {
-        min(1, abs(offset.width) / threshold)
+        min(1, max(abs(offset.width), abs(offset.height)) / threshold)
     }
+
+    private var isVertical: Bool { abs(offset.height) > abs(offset.width) }
 
     private func scale(for depth: Int) -> CGFloat {
         guard depth > 0 else { return 1 }
@@ -216,16 +224,33 @@ struct SweepView: View {
         return 16 * (CGFloat(depth) - swipeProgress)
     }
 
-    /// -1 = past the keep threshold, 1 = past the delete threshold (for haptics).
-    private var dragZone: Int {
-        if flying || session?.isFinished != false { return 0 }
-        if offset.width <= -threshold { return -1 }
-        if offset.width >= threshold { return 1 }
-        return 0
+    /// The move the card would do if released now (for haptics).
+    private var dragZone: Move? {
+        if flying || session?.isFinished != false { return nil }
+        return move(for: offset)
     }
 
-    private var keepAmount: CGFloat { min(1, max(0, -offset.width / threshold)) }
-    private var deleteAmount: CGFloat { min(1, max(0, offset.width / threshold)) }
+    /// Move for a translation past the threshold (dominant axis), if any.
+    private func move(for t: CGSize) -> Move? {
+        if abs(t.width) >= abs(t.height) {
+            if t.width <= -threshold { return .keep }
+            if t.width >= threshold { return .delete }
+        } else {
+            if t.height <= -threshold { return .later }
+            if t.height >= threshold { return .favorite }
+        }
+        return nil
+    }
+
+    private func amount(_ value: CGFloat, vertical: Bool) -> CGFloat {
+        guard vertical == isVertical else { return 0 }
+        return min(1, max(0, value / threshold))
+    }
+
+    private var keepAmount: CGFloat { amount(-offset.width, vertical: false) }
+    private var deleteAmount: CGFloat { amount(offset.width, vertical: false) }
+    private var laterAmount: CGFloat { amount(-offset.height, vertical: true) }
+    private var favoriteAmount: CGFloat { amount(offset.height, vertical: true) }
 
     private var stamps: some View {
         ZStack {
@@ -245,23 +270,49 @@ struct SweepView: View {
                 .opacity(deleteAmount)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(24)
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .fill(m3.tertiary.opacity(0.25 * laterAmount))
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .fill(m3.favorite.accent.opacity(0.25 * favoriteAmount))
+            Stamp(text: "DOPO", icon: "clock.arrow.circlepath", tones: m3.later)
+                .scaleEffect(0.8 + 0.2 * laterAmount)
+                .opacity(laterAmount)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, 90)
+            Stamp(text: "PREFERITA", icon: "heart.fill", tones: m3.favorite)
+                .scaleEffect(0.8 + 0.2 * favoriteAmount)
+                .opacity(favoriteAmount)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .padding(.top, 28)
         }
         .allowsHitTesting(false)
     }
 
     /// Icons behind the cards, revealed while dragging.
     private var edgeHints: some View {
-        // Dragging left uncovers the right edge and vice versa.
-        HStack {
-            IconBadge(icon: "trash", tones: m3.delete, size: 64, cookie: true)
-                .scaleEffect(0.6 + 0.4 * deleteAmount)
-                .opacity(deleteAmount)
-            Spacer()
-            IconBadge(icon: "checkmark", tones: m3.keep, size: 64, cookie: true)
-                .scaleEffect(0.6 + 0.4 * keepAmount)
-                .opacity(keepAmount)
+        // Dragging a card uncovers the opposite edge.
+        ZStack {
+            HStack {
+                IconBadge(icon: "trash", tones: m3.delete, size: 64, cookie: true)
+                    .scaleEffect(0.6 + 0.4 * deleteAmount)
+                    .opacity(deleteAmount)
+                Spacer()
+                IconBadge(icon: "checkmark", tones: m3.keep, size: 64, cookie: true)
+                    .scaleEffect(0.6 + 0.4 * keepAmount)
+                    .opacity(keepAmount)
+            }
+            .padding(.horizontal, 20)
+            VStack {
+                IconBadge(icon: "heart.fill", tones: m3.favorite, size: 64, cookie: true)
+                    .scaleEffect(0.6 + 0.4 * favoriteAmount)
+                    .opacity(favoriteAmount)
+                Spacer()
+                IconBadge(icon: "clock.arrow.circlepath", tones: m3.later, size: 64, cookie: true)
+                    .scaleEffect(0.6 + 0.4 * laterAmount)
+                    .opacity(laterAmount)
+            }
+            .padding(.vertical, 20)
         }
-        .padding(.horizontal, 20)
         .allowsHitTesting(false)
     }
 
@@ -271,36 +322,47 @@ struct SweepView: View {
         DragGesture(minimumDistance: 8)
             .onChanged { value in
                 guard !flying, session?.isFinished == false else { return }
-                offset = CGSize(width: value.translation.width, height: value.translation.height * 0.3)
+                offset = value.translation
             }
             .onEnded { value in
                 guard !flying, session?.isFinished == false else { return }
-                let w = value.translation.width
-                let predicted = value.predictedEndTranslation.width
-                if w <= -threshold || (predicted <= -threshold * 2.2 && w < 0) {
-                    commit(.keep)
-                } else if w >= threshold || (predicted >= threshold * 2.2 && w > 0) {
-                    commit(.delete)
+                let t = value.translation
+                let p = value.predictedEndTranslation
+                // A fast flick counts too, in the same direction as the drag.
+                let flick = CGSize(width: abs(p.width) > threshold * 2.2 && p.width * t.width > 0 ? p.width : t.width,
+                                   height: abs(p.height) > threshold * 2.2 && p.height * t.height > 0 ? p.height : t.height)
+                if let move = move(for: t) ?? move(for: flick) {
+                    commit(move)
                 } else {
                     withAnimation(.spring(duration: 0.4, bounce: 0.35)) { offset = .zero }
                 }
             }
     }
 
-    private func commit(_ decision: Decision) {
-        guard !flying, session?.current != nil else { return }
-        flying = true
-        let direction: CGFloat = decision == .keep ? -1 : 1
-        let distance = max(cardSize.width, 360) * 1.7
-        withAnimation(.easeIn(duration: 0.22)) {
-            offset = CGSize(width: direction * distance, height: offset.height + 40)
-        } completion: {
-            finish(decision)
+    /// Where a card goes when it leaves the screen with this move.
+    private func exit(for move: Move, scale: CGFloat = 1.7) -> CGSize {
+        let w = max(cardSize.width, 360) * scale
+        let h = max(cardSize.height, 700) * scale
+        switch move {
+        case .keep: return CGSize(width: -w, height: offset.height + 40)
+        case .delete: return CGSize(width: w, height: offset.height + 40)
+        case .later: return CGSize(width: offset.width, height: -h)
+        case .favorite: return CGSize(width: offset.width, height: h)
         }
     }
 
-    private func finish(_ decision: Decision) {
-        guard var s = session, let step = s.decide(decision) else {
+    private func commit(_ move: Move) {
+        guard !flying, session?.current != nil else { return }
+        flying = true
+        withAnimation(.easeIn(duration: 0.22)) {
+            offset = exit(for: move)
+        } completion: {
+            finish(move)
+        }
+    }
+
+    private func finish(_ move: Move) {
+        guard var s = session, let step = s.apply(move) else {
             flying = false
             return
         }
@@ -315,8 +377,20 @@ struct SweepView: View {
                 offset = .zero
             }
         }
-        model.apply(decision, to: step.id)
-        if decision == .keep { keepTick += 1 } else { deleteTick += 1 }
+        if let decision = step.decision { model.apply(decision, to: step.id) }
+        switch move {
+        case .keep: keepTick += 1
+        case .delete: deleteTick += 1
+        case .later:
+            laterTick += 1
+            if s.current == step.id { model.showToast("È l'ultima rimasta: decidi se tenerla o eliminarla.") }
+        case .favorite:
+            favoriteTick += 1
+            if library.asset(step.id)?.isFavorite == false {
+                favoritedNow.insert(step.id)
+                Task { await library.setFavorite(step.id, true) }
+            }
+        }
         flying = false
         preheat()
     }
@@ -324,13 +398,16 @@ struct SweepView: View {
     private func undo() {
         guard !flying, var s = session, let step = s.undo() else { return }
         flying = true
-        model.revert(step.id)
-        let direction: CGFloat = step.decision == .keep ? -1 : 1
+        if step.decision != nil { model.revert(step.id) }
+        if step.move == .favorite, favoritedNow.remove(step.id) != nil {
+            Task { await library.setFavorite(step.id, false) }
+        }
         var t = Transaction()
         t.disablesAnimations = true
         withTransaction(t) {
             session = s
-            offset = CGSize(width: direction * max(cardSize.width, 360) * 1.3, height: 0)
+            offset = .zero
+            offset = exit(for: step.move, scale: 1.3)
         }
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(20))
@@ -349,25 +426,31 @@ struct SweepView: View {
             ActionCircle(icon: "checkmark", caption: "Tieni", arrow: "arrow.left", tones: m3.keep, emphasis: keepAmount) {
                 commit(.keep)
             }
-            Spacer()
-            Button(action: undo) {
-                Image(systemName: "arrow.uturn.backward")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(m3.onSurfaceVariant)
-                    .frame(width: 52, height: 52)
-                    .background(m3.surfaceContainerHigh, in: Circle())
+            Spacer(minLength: 4)
+            ActionCircle(icon: "heart.fill", caption: "Preferita", arrow: "arrow.down", tones: m3.favorite,
+                         emphasis: favoriteAmount, size: 50) {
+                commit(.favorite)
             }
-            .buttonStyle(PressableStyle())
-            .disabled(session?.canUndo != true || flying)
-            .opacity(session?.canUndo == true ? 1 : 0.4)
-            .padding(.top, 12)
-            .accessibilityLabel("Annulla ultima scelta")
-            Spacer()
+            .padding(.top, 11)
+            Spacer(minLength: 4)
+            ActionCircle(icon: "arrow.uturn.backward", caption: "Annulla", arrow: nil,
+                         tones: Tones(accent: m3.onSurfaceVariant, container: m3.surfaceContainerHigh, onContainer: m3.onSurfaceVariant),
+                         size: 50, action: undo)
+                .disabled(session?.canUndo != true || flying)
+                .opacity(session?.canUndo == true ? 1 : 0.4)
+                .padding(.top, 11)
+            Spacer(minLength: 4)
+            ActionCircle(icon: "clock.arrow.circlepath", caption: "Dopo", arrow: "arrow.up", tones: m3.later,
+                         emphasis: laterAmount, size: 50) {
+                commit(.later)
+            }
+            .padding(.top, 11)
+            Spacer(minLength: 4)
             ActionCircle(icon: "trash", caption: "Elimina", arrow: "arrow.right", tones: m3.delete, emphasis: deleteAmount, arrowTrailing: true) {
                 commit(.delete)
             }
         }
-        .padding(.horizontal, 40)
+        .padding(.horizontal, 18)
         .padding(.top, 10)
         .padding(.bottom, 8)
     }
@@ -480,19 +563,20 @@ private struct ActionCircle: View {
     @Environment(\.m3) private var m3
     let icon: String
     let caption: String
-    let arrow: String
+    let arrow: String?
     let tones: Tones
     var emphasis: CGFloat = 0
     var arrowTrailing = false
+    var size: CGFloat = 72
     let action: () -> Void
 
     var body: some View {
         VStack(spacing: 8) {
             Button(action: action) {
                 Image(systemName: icon)
-                    .font(.system(size: 28, weight: .bold))
+                    .font(.system(size: size * 0.38, weight: .bold))
                     .foregroundStyle(emphasis > 0.99 ? m3.surface : tones.onContainer)
-                    .frame(width: 76, height: 76)
+                    .frame(width: size, height: size)
                     .background(emphasis > 0.99 ? tones.accent : tones.container, in: Circle())
                     .scaleEffect(1 + 0.12 * emphasis)
                     .animation(.spring(duration: 0.25), value: emphasis > 0.99)
@@ -500,12 +584,14 @@ private struct ActionCircle: View {
             .buttonStyle(PressableStyle())
             .accessibilityLabel(caption)
 
-            HStack(spacing: 4) {
-                if !arrowTrailing { Image(systemName: arrow) }
+            HStack(spacing: 3) {
+                if let arrow, !arrowTrailing { Image(systemName: arrow) }
                 Text(caption)
-                if arrowTrailing { Image(systemName: arrow) }
+                if let arrow, arrowTrailing { Image(systemName: arrow) }
             }
-            .font(.m3LabelMedium)
+            .font(size < 60 ? .m3LabelSmall : .m3LabelMedium)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
             .foregroundStyle(m3.onSurfaceVariant)
         }
     }

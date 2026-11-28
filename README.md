@@ -4,7 +4,9 @@ App iOS nativa (Swift + SwiftUI, grafica Material 3) per fare pulizia nelle foto
 e negli album dell'iPhone. Ti mostra una foto alla volta:
 
 - **scorri a sinistra** → la tieni e passi alla successiva;
-- **scorri a destra** → va nel cestino e passi alla successiva.
+- **scorri a destra** → va nel cestino e passi alla successiva;
+- **scorri in su** → decidi dopo: la foto torna alla fine;
+- **scorri in giù** → la aggiungi ai Preferiti (e la tieni).
 
 Sviluppata senza Mac: compilata da GitHub Actions e distribuita con
 **TestFlight**. Il `.ipa` non firmato per Sideloadly resta come ripiego.

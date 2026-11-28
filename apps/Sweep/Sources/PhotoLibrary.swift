@@ -299,6 +299,21 @@ final class PhotoLibrary {
         }
     }
 
+    /// Adds or removes the heart in Photos.
+    @discardableResult
+    func setFavorite(_ id: String, _ value: Bool) async -> Bool {
+        guard let asset = asset(id), asset.isFavorite != value else { return false }
+        do {
+            try await PHPhotoLibrary.shared().performChanges {
+                PHAssetChangeRequest(for: asset).isFavorite = value
+            }
+            assetCache[id] = nil
+            return true
+        } catch {
+            return false
+        }
+    }
+
     /// Warms the cache for the next photos of the queue.
     func preheat(_ ids: [String], targetSize: CGSize) {
         let assets = ids.compactMap { asset($0) }
