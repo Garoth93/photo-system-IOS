@@ -6,12 +6,14 @@ import UIKit
 struct HomeView: View {
     @Environment(PhotoLibrary.self) private var library
     @Environment(AppModel.self) private var model
+    @Environment(SimilarScanner.self) private var scanner
     @Environment(\.m3) private var m3
     @Environment(\.openURL) private var openURL
 
     @State private var active: SweepSource?
     @State private var showTrash = false
     @State private var showSettings = false
+    @State private var showSimilar = false
     @State private var confirmForget = false
     /// Reviewed items per source id (computed on demand, not on every swipe).
     @State private var reviewed: [String: Int] = [:]
@@ -29,6 +31,7 @@ struct HomeView: View {
                 if model.state.trashCount > 0 { trashCard }
                 filters
                 libraryCard
+                tools
                 if model.state.deletedCount > 0 || !model.state.kept.isEmpty { stats }
                 if !library.collections.isEmpty {
                     SectionTitle(title: "Raccolte")
@@ -52,6 +55,9 @@ struct HomeView: View {
         }
         .fullScreenCover(item: $active, onDismiss: refreshProgress) { source in
             SweepView(source: source)
+        }
+        .fullScreenCover(isPresented: $showSimilar, onDismiss: refreshProgress) {
+            SimilarView()
         }
         .sheet(isPresented: $showTrash, onDismiss: refreshProgress) {
             TrashView()
@@ -282,6 +288,30 @@ struct HomeView: View {
         return "\(SweepFormat.photos(total)) · \(SweepFormat.count(left)) da vedere"
     }
 
+    // MARK: Tools
+
+    private var tools: some View {
+        HStack(spacing: 10) {
+            ToolCard(icon: "square.on.square", title: "Doppioni e simili", subtitle: similarSubtitle,
+                     tones: Tones(accent: m3.tertiary, container: m3.tertiaryContainer, onContainer: m3.onTertiaryContainer)) {
+                showSimilar = true
+            }
+            .disabled(!library.hasLoaded)
+        }
+    }
+
+    private var similarSubtitle: String {
+        switch scanner.phase {
+        case .idle:
+            return "Raffiche, copie e scatti ripetuti"
+        case .scanning(let done, let total):
+            return total > 0 ? "Ricerca… \(Int(Double(done) / Double(total) * 100))%" : "Ricerca…"
+        case .ready:
+            let count = Similarity.pending(scanner.groups, state: model.state).count
+            return count == 0 ? "Nessun doppione da vedere" : "\(SweepFormat.count(count)) gruppi da vedere"
+        }
+    }
+
     // MARK: Albums
 
     private func albumList(_ items: [AlbumInfo]) -> some View {
@@ -397,5 +427,41 @@ struct StatTile: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(m3.surfaceContainerLow, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+}
+
+/// Shortcut to a cleaning tool (duplicates, heavy videos).
+struct ToolCard: View {
+    @Environment(\.m3) private var m3
+    @Environment(\.isEnabled) private var isEnabled
+    let icon: String
+    let title: String
+    let subtitle: String
+    let tones: Tones
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 12) {
+                IconBadge(icon: icon, tones: tones, size: 44, cookie: true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.m3TitleSmall)
+                        .foregroundStyle(m3.onSurface)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Text(subtitle)
+                        .font(.m3BodySmall)
+                        .foregroundStyle(m3.onSurfaceVariant)
+                        .lineLimit(2, reservesSpace: true)
+                        .contentTransition(.numericText())
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(m3.surfaceContainerLow, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .opacity(isEnabled ? 1 : 0.5)
+        }
+        .buttonStyle(PressableStyle())
     }
 }

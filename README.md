@@ -28,6 +28,9 @@ Sviluppata senza Mac: compilata da GitHub Actions e distribuita con
   Dal cestino puoi ripescare quelle eliminate per sbaglio.
 - **Riprendi da dove eri**: le foto già tenute non ti vengono più riproposte,
   in nessun album. "Rivedi da capo" le ripropone.
+- **Doppioni e simili**: Sweep trova raffiche, copie salvate due volte e scatti
+  ripetuti, te li mostra a gruppi con la foto migliore già scelta; tocchi
+  quelle da tenere e le altre vanno nel cestino.
 - Filtro **Tutto / Foto / Video** e ordine **Recenti / Vecchie / Casuale**.
 - Totali: foto eliminate, spazio liberato, foto tenute.
 - **Backup automatico su iCloud Drive** (File › iCloud Drive › Backup › Sweep):

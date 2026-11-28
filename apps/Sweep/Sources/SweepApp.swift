@@ -25,6 +25,7 @@ struct SweepApp: App {
     @State private var model = AppModel.shared
     @State private var library = PhotoLibrary.shared
     @State private var cloud = CloudBackupService.shared
+    @State private var scanner = SimilarScanner.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -33,6 +34,7 @@ struct SweepApp: App {
                 .environment(model)
                 .environment(library)
                 .environment(cloud)
+                .environment(scanner)
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {

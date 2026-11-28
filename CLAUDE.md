@@ -62,6 +62,19 @@ in Application Support (`AppModel` + `JSONFileStore`), con salvataggio
 differito per non rallentare lo swipe; preferenze (filtro, ordine, backup
 on/off) in UserDefaults. Impostazioni in `SettingsView` (ingranaggio in home).
 
+Strumenti in home (`ToolCard`):
+
+- **Doppioni e simili** (`SimilarScanner` + `SimilarView`): per ogni foto un
+  dHash a 64 bit da una miniatura locale 9×8 in grigio (`fastFormat`, niente
+  download da iCloud), in cache in `Application Support/Sweep/hashes.json`
+  (si calcola solo per le foto nuove). Raggruppamento in
+  `SweepCore.Similarity`: scatti entro 180 s concatenati con distanza ≤ 10
+  bit + hash identici in tutta la libreria, stessa forma (±5%); `best` =
+  preferita, poi più pixel, più pesante, più recente. `pending` nasconde i
+  gruppi con una sola foto fuori dal cestino o già tutti tenuti. Un gruppo
+  alla volta: tocchi le foto da tenere, le altre vanno nel cestino; Salta e
+  Annulla.
+
 ### Backup iCloud Drive
 
 Stessa procedura di tessere-IOS / montagna-360: container **condiviso**
