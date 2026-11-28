@@ -297,6 +297,12 @@ struct HomeView: View {
                 showSimilar = true
             }
             .disabled(!library.hasLoaded)
+            ToolCard(icon: "film.stack", title: "Video più pesanti",
+                     subtitle: library.videoCount == 0 ? "Nessun video" : "\(SweepFormat.count(library.videoCount)) video, dal più pesante",
+                     tones: m3.delete) {
+                active = .largeVideos
+            }
+            .disabled(!library.hasLoaded || library.videoCount == 0)
         }
     }
 

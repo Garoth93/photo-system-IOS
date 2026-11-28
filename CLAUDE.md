@@ -55,7 +55,7 @@ una sola conferma (fine album, card cestino in home, schermata Cestino). Le
 foto tenute (`SweepState.kept`) non vengono più riproposte in nessun album
 ("Rivedi da capo" le dimentica). Sorgenti: tutta la libreria, raccolte smart
 (Screenshot, Selfie, Video…) e album utente; filtro Tutto/Foto/Video e ordine
-Recenti/Vecchie/Casuale. Accesso a Photos in `PhotoLibrary.swift`; logica in
+Recenti/Vecchie/Più pesanti/Casuale. Accesso a Photos in `PhotoLibrary.swift`; logica in
 `packages/SweepCore` (`SweepState`, `ReviewSession`, `SweepFormat`,
 `CloudBackup`, palette Material 3 `MaterialScheme`). Stato salvato come JSON
 in Application Support (`AppModel` + `JSONFileStore`), con salvataggio
@@ -74,6 +74,11 @@ Strumenti in home (`ToolCard`):
   gruppi con una sola foto fuori dal cestino o già tutti tenuti. Un gruppo
   alla volta: tocchi le foto da tenere, le altre vanno nel cestino; Salta e
   Annulla.
+- **Video più pesanti** (`SweepSource.largeVideos`): tutti i video, sempre in
+  ordine `largestFirst`. Lo stesso ordine "Più pesanti" è scelto anche per le
+  altre sorgenti dai chip in home. Pesi dei file in `SizeIndex` (risorse
+  `PHAssetResource`, calcolati una volta fuori dal main thread, cache in
+  `Application Support/Sweep/sizes.json`, tolti dopo l'eliminazione).
 
 ### Backup iCloud Drive
 

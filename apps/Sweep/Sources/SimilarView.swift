@@ -17,6 +17,7 @@ struct SimilarView: View {
     @State private var showTrash = false
     @State private var loaded = false
     @State private var keptNow = 0
+    @State private var sizes: [String: Int64] = [:]
     @State private var binnedNow = 0
 
     private struct Resolution {
@@ -48,6 +49,7 @@ struct SimilarView: View {
             index = 0
             selectDefault()
             loaded = true
+            sizes = await SizeIndex.shared.sizes(for: queue.flatMap(\.ids))
         }
         .sheet(isPresented: $showTrash) { TrashView() }
         .sensoryFeedback(.selection, trigger: keep)
@@ -156,7 +158,7 @@ struct SimilarView: View {
                         .foregroundStyle(m3.onSurfaceVariant)
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
                         ForEach(group.ids, id: \.self) { id in
-                            SimilarCell(id: id, keep: keep.contains(id), best: id == group.best)
+                            SimilarCell(id: id, keep: keep.contains(id), best: id == group.best, bytes: sizes[id])
                                 .onTapGesture { toggle(id) }
                         }
                     }
@@ -291,6 +293,7 @@ private struct SimilarCell: View {
     let id: String
     let keep: Bool
     let best: Bool
+    var bytes: Int64?
 
     var body: some View {
         Color.clear
@@ -322,6 +325,18 @@ private struct SimilarCell: View {
                         .font(.m3LabelMedium)
                         .foregroundStyle(.white)
                         .padding(.horizontal, 10)
+                        .frame(height: 26)
+                        .background(.black.opacity(0.45), in: Capsule())
+                        .padding(8)
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if let bytes, bytes > 0 {
+                    Text(SweepFormat.bytes(bytes))
+                        .font(.m3LabelMedium)
+                        .monospacedDigit()
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 9)
                         .frame(height: 26)
                         .background(.black.opacity(0.45), in: Capsule())
                         .padding(8)

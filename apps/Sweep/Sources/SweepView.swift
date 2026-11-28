@@ -56,9 +56,18 @@ struct SweepView: View {
 
     // MARK: Loading
 
+    /// Heavy videos are always shown heaviest first.
+    private var order: SweepOrder {
+        source == .largeVideos ? .largestFirst : model.order
+    }
+
     private func load() async {
         let ids = await library.ids(for: source, filter: model.filter)
-        let todo = model.state.unreviewed(model.order.arrange(newestFirst: ids))
+        var sizes: [String: Int64] = [:]
+        if order.needsSizes {
+            sizes = await SizeIndex.shared.sizes(for: ids)
+        }
+        let todo = model.state.unreviewed(order.arrange(newestFirst: ids, sizes: sizes))
         allIDs = ids
         reviewedBefore = ids.count - todo.count
         session = ReviewSession(ids: todo)
@@ -137,6 +146,20 @@ struct SweepView: View {
             } else {
                 cardStack(session)
             }
+        } else if let progress = SizeIndex.shared.progress, progress.total > 0 {
+            VStack(spacing: 18) {
+                HeroMessage(icon: "externaldrive", title: "Peso i file…",
+                            message: "Per mostrarti prima le foto e i video più pesanti. Lo faccio una volta sola.")
+                M3Progress(value: Double(progress.done) / Double(progress.total),
+                           color: m3.primary, track: m3.surfaceContainerHighest, height: 8)
+                    .padding(.horizontal, 24)
+                Text("\(SweepFormat.count(progress.done)) di \(SweepFormat.count(progress.total))")
+                    .font(.m3LabelLarge)
+                    .monospacedDigit()
+                    .foregroundStyle(m3.onSurfaceVariant)
+                    .contentTransition(.numericText())
+            }
+            .padding(24)
         } else {
             ProgressView()
                 .tint(m3.primary)

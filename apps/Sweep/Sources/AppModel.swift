@@ -129,6 +129,7 @@ final class AppModel {
             let result = try await library.delete(ids: ids)
             state.restore(result.missing)
             state.commitDeletion(of: result.deleted, bytes: result.bytes)
+            SizeIndex.shared.forget(result.deleted)
             saveNow()
             onDataChanged?()
             if result.deleted.isEmpty {

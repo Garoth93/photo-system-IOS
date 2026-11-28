@@ -7,11 +7,14 @@ import UIKit
 /// What is being cleaned: the whole library or one album.
 enum SweepSource: Hashable, Identifiable {
     case library
+    /// Every video, heaviest first (whatever the media filter is).
+    case largeVideos
     case album(id: String, title: String, icon: String)
 
     var id: String {
         switch self {
         case .library: return "library"
+        case .largeVideos: return "largeVideos"
         case .album(let id, _, _): return id
         }
     }
@@ -19,6 +22,7 @@ enum SweepSource: Hashable, Identifiable {
     var title: String {
         switch self {
         case .library: return "Tutte le foto"
+        case .largeVideos: return "Video più pesanti"
         case .album(_, let title, _): return title
         }
     }
@@ -26,6 +30,7 @@ enum SweepSource: Hashable, Identifiable {
     var icon: String {
         switch self {
         case .library: return "photo.on.rectangle.angled"
+        case .largeVideos: return "film.stack"
         case .album(_, _, let icon): return icon
         }
     }
@@ -63,6 +68,7 @@ final class PhotoLibrary {
     private(set) var libraryIDs: [String] = []
     private(set) var collections: [AlbumInfo] = []   // smart albums (Screenshots, Selfie…)
     private(set) var albums: [AlbumInfo] = []        // user albums
+    private(set) var videoCount = 0
     private(set) var isLoading = false
     private(set) var hasLoaded = false
     /// Bumped every time the library changes (also outside the app).
@@ -113,6 +119,7 @@ final class PhotoLibrary {
         libraryIDs = result.library
         collections = result.collections
         albums = result.albums
+        videoCount = result.videoCount
         isLoading = false
         hasLoaded = true
     }
@@ -121,6 +128,7 @@ final class PhotoLibrary {
         let library: [String]
         let collections: [AlbumInfo]
         let albums: [AlbumInfo]
+        let videoCount: Int
     }
 
     nonisolated private static func loadAll(filter: MediaFilter) -> LoadResult {
@@ -155,7 +163,8 @@ final class PhotoLibrary {
         }
         albums.sort { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
 
-        return LoadResult(library: library, collections: collections, albums: albums)
+        let videoCount = PHAsset.fetchAssets(with: Self.fetchOptions(.videos)).count
+        return LoadResult(library: library, collections: collections, albums: albums, videoCount: videoCount)
     }
 
     nonisolated private static func fetchOptions(_ filter: MediaFilter) -> PHFetchOptions {
@@ -187,6 +196,8 @@ final class PhotoLibrary {
             switch source {
             case .library:
                 return Self.ids(in: PHAsset.fetchAssets(with: Self.fetchOptions(filter)))
+            case .largeVideos:
+                return Self.ids(in: PHAsset.fetchAssets(with: Self.fetchOptions(.videos)))
             case .album(let id, _, _):
                 guard let collection = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [id], options: nil).firstObject else {
                     return []
@@ -333,7 +344,7 @@ final class PhotoLibrary {
         await totalSize(of: [id])
     }
 
-    nonisolated private static func fileSize(of asset: PHAsset) -> Int64 {
+    nonisolated static func fileSize(of asset: PHAsset) -> Int64 {
         PHAssetResource.assetResources(for: asset).reduce(Int64(0)) { sum, resource in
             let value = resource.value(forKey: "fileSize")
             if let n = value as? Int64 { return sum + n }

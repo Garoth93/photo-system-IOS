@@ -78,12 +78,13 @@ public enum MediaFilter: String, CaseIterable, Codable, Sendable {
 
 /// Order in which photos are proposed.
 public enum SweepOrder: String, CaseIterable, Codable, Sendable {
-    case newestFirst, oldestFirst, random
+    case newestFirst, oldestFirst, largestFirst, random
 
     public var title: String {
         switch self {
         case .newestFirst: return "Recenti"
         case .oldestFirst: return "Vecchie"
+        case .largestFirst: return "Più pesanti"
         case .random: return "Casuale"
         }
     }
@@ -92,16 +93,29 @@ public enum SweepOrder: String, CaseIterable, Codable, Sendable {
         switch self {
         case .newestFirst: return "arrow.down"
         case .oldestFirst: return "arrow.up"
+        case .largestFirst: return "externaldrive"
         case .random: return "shuffle"
         }
     }
 
+    /// True when the order needs the file sizes.
+    public var needsSizes: Bool { self == .largestFirst }
+
     /// Applies the order to ids that are already sorted newest first.
-    public func arrange(newestFirst ids: [String]) -> [String] {
+    /// `sizes` (bytes per id) is used by `.largestFirst`; equal or unknown
+    /// sizes keep the newest-first order.
+    public func arrange(newestFirst ids: [String], sizes: [String: Int64] = [:]) -> [String] {
         switch self {
         case .newestFirst: return ids
         case .oldestFirst: return ids.reversed()
         case .random: return ids.shuffled()
+        case .largestFirst:
+            return ids.enumerated()
+                .sorted { a, b in
+                    let sa = sizes[a.element] ?? 0, sb = sizes[b.element] ?? 0
+                    return sa != sb ? sa > sb : a.offset < b.offset
+                }
+                .map(\.element)
         }
     }
 }

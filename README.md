@@ -31,7 +31,9 @@ Sviluppata senza Mac: compilata da GitHub Actions e distribuita con
 - **Doppioni e simili**: Sweep trova raffiche, copie salvate due volte e scatti
   ripetuti, te li mostra a gruppi con la foto migliore già scelta; tocchi
   quelle da tenere e le altre vanno nel cestino.
-- Filtro **Tutto / Foto / Video** e ordine **Recenti / Vecchie / Casuale**.
+- **Video più pesanti** e ordine **Più pesanti**: prima i file che liberano più
+  spazio.
+- Filtro **Tutto / Foto / Video** e ordine **Recenti / Vecchie / Più pesanti / Casuale**.
 - Totali: foto eliminate, spazio liberato, foto tenute.
 - **Backup automatico su iCloud Drive** (File › iCloud Drive › Backup › Sweep):
   foto tenute, cestino, avanzamento degli album e impostazioni, un file al
